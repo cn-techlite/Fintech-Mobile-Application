@@ -1,30 +1,131 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+import 'dart:convert';
 
+import 'package:fintech_mobile_application/core/app.dart';
+import 'package:fintech_mobile_application/core/constants/app_constants.dart';
+import 'package:fintech_mobile_application/models/user_model.dart';
+import 'package:fintech_mobile_application/providers/service_providers.dart';
+import 'package:fintech_mobile_application/providers/tips_provider.dart';
+import 'package:fintech_mobile_application/widgets/app_buttons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:fintech_mobile_application/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('login screen validates email and password', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const KoinsSavingsApp(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    expect(find.text('Welcome to Koins'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email Address'),
+      'invalid',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'short',
+    );
+    await tester.tap(find.widgetWithText(AppButton, 'Login'));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+    expect(
+      find.text('Password must be at least 8 characters.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('login failure is presented in a styled snackbar', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const KoinsSavingsApp(),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email Address'),
+      'wrong@bank.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'Password123',
+    );
+    await tester.tap(find.widgetWithText(AppButton, 'Login'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('Incorrect email or password.'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
+
+  testWidgets('logging in after logout opens the dashboard', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      AppConstants.userKey: jsonEncode(
+        const UserModel(
+          fullName: 'John Doe',
+          email: AppConstants.mockEmail,
+          phoneNumber: '+234 801 234 5678',
+        ).toJson(),
+      ),
+    });
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          savingsTipsProvider.overrideWith((ref) async => const []),
+        ],
+        child: const KoinsSavingsApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(AppButton, 'Logout'));
+    await tester.pumpAndSettle();
+
+    final confirmationButton = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(AppButton, 'Logout'),
+    );
+    await tester.tap(confirmationButton);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Welcome to Koins'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email Address'),
+      AppConstants.mockEmail,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      AppConstants.mockPassword,
+    );
+    await tester.tap(find.widgetWithText(AppButton, 'Login'));
+    await tester.pumpAndSettle();
+
+    final navigationBar = tester.widget<NavigationBar>(
+      find.byType(NavigationBar),
+    );
+    expect(navigationBar.selectedIndex, 0);
+    expect(find.text('Good Morning, John Doe'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
   });
 }
