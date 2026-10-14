@@ -1,8 +1,9 @@
 {
-    "cSpell.words": [
-        "fintech",
-        "Koins",
-        "Roboto",
-        "Schyler"
-    ]
+  "cSpell.words": [
+    "fintech",
+    "Koins",
+    "Roboto",
+    "Schyler"
+  ],
+  "dart.flutterSdkPath": ".fvm/versions/3.47.5"
 }
